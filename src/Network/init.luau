@@ -3,7 +3,7 @@
 --[[
     Network
     @author DistractedGames
-    @version 1.2.0
+    @version 1.3.0
 
     A network abstraction layer that manages RemoteEvent and RemoteFunction
 	instances automatically. It provides a clean, type-safe API for remote
@@ -15,13 +15,12 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
-local RemoteEventName = require(script.RemoteName.RemoteEventName)
-local RemoteFunctionName = require(script.RemoteName.RemoteFunctionName)
+local RemoteEventName = require("@self/RemoteName/RemoteEventName")
+local RemoteFunctionName = require("@self/RemoteName/RemoteFunctionName")
 
-local utility = script.Utility
-local createRemotesFolders = require(utility.createRemotesFolders)
-local waitForAllRemotesAsync = require(utility.waitForAllRemotesAsync)
-local getInstance = require(utility.getInstance)
+local createRemotesFolders = require("@self/Utility/createRemotesFolders")
+local waitForAllRemotesAsync = require("@self/Utility/waitForAllRemotesAsync")
+local getInstance = require("@self/Utility/getInstance")
 
 -- How long the client will wait for remotes to replicate before erroring.
 local REMOTE_REPLICATION_TIMEOUT_SECONDS = 2
@@ -35,8 +34,9 @@ local Network = {}
 Network.RemoteEvents = RemoteEventName
 Network.RemoteFunctions = RemoteFunctionName
 Network.Middleware = {
-    Admin = require(script.Middleware.Admin),
-    RateLimit = require(script.Middleware.RateLimit),
+    Admin = require("@self/Middleware/Admin"),
+    RateLimit = require("@self/Middleware/RateLimit"),
+    Proximity = require("@self/Middleware/Proximity")
 }
 Network._started = false
 Network._remoteFolder = nil :: Folder?

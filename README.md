@@ -2,7 +2,7 @@
 
 The `Remotes` network library provides a type-safe, high-level interface for RemoteEvents and RemoteFunctions in Roblox. It automatically manages the creation, replication, and invocation of remotes, meaning you no longer have to manually create folders, assign remotes, or handle client/server differences.
 
-By enforcing argument type safety and abstracting away the boilerplate, this library reduces runtime errors and makes networking incredibly simple. It also features a powerful, optional [Middleware](#middleware) system that allows you to secure your network events (like adding rate-limiters or admin checks) without cluttering your core game logic.
+By enforcing argument type safety and abstracting away the boilerplate, this library reduces runtime errors and makes networking incredibly simple. It also features a powerful, optional [Middleware](#middleware) system that allows you to secure your network events (like adding rate-limiters, proximity checks, or admin checks) without cluttering your core game logic.
 
 ---
 
@@ -119,13 +119,13 @@ local success, result = Network.invokeClientAsync(Network.RemoteFunctions.Exampl
 
 ## Middleware
 
-Middleware functions act as security checkpoints for your network events. They intercept the event *before* your main callback runs, allowing you to check conditions (like cooldowns or admin privileges) and decide whether to let the event through or drop it.
+Middleware functions act as security checkpoints for your network events. They intercept the event *before* your main callback runs, allowing you to check conditions (like cooldowns, proximity checks, or admin privileges) and decide whether to let the event through or drop it.
 
 This is highly recommended for securing your server from bad actors or exploiters without cluttering your core game code.
 
 ### Using Built-in Middleware
 
-The library comes with two built-in middlewares that you can easily attach to any `connectEvent` or `bindFunction` call by passing them in an array as the third argument:
+The library comes with three built-in middlewares that you can easily attach to any `connectEvent` or `bindFunction` call by passing them in an array as the third argument:
 
 #### 1. RateLimit
 Prevents players from spamming an event. The argument is the cooldown in seconds.
@@ -157,6 +157,23 @@ Network.connectEvent(
 )
 ```
 
+#### 3. Proximity
+Ensures that the calling player has a living character in `Workspace` within an allowed distance from a specified target `Vector3` position. The second argument (maximum distance in studs) is optional and defaults to `15`.
+
+```lua
+local CHEST_POSITION = Vector3.new(0, 5, 20)
+
+Network.connectEvent(
+    Network.RemoteEvents.OpenChest,
+    function(player)
+        -- This logic will only run if the player's character is alive and within 15 studs of CHEST_POSITION
+    end,
+    {
+        Network.Middleware.Proximity(CHEST_POSITION, 15)
+    }
+)
+```
+
 ### Stacking Middleware
 
 You can combine multiple middleware functions simply by adding them to the array. They will be checked in order.
@@ -176,7 +193,7 @@ Network.connectEvent(
 
 ### Passing Your Own Custom Middleware
 
-You can pass any function that returns `(boolean, string?)` to the array. The `boolean` is the value that determines if the remote should be allowed to run, the optional `string?` is useful specifically for RemoteFunctions as the `Network` module will kick back a `false, errorMessage` to the caller in case of failure.
+You can pass any function that returns `(boolean, string?)` to the array. The `boolean` determines if the remote is allowed to run, while the optional `string?` provides a failure reason if rejected.
 
 ```lua
 local function LevelRequirementMiddleware(player: Player): (boolean, string?)
@@ -189,7 +206,6 @@ local function LevelRequirementMiddleware(player: Player): (boolean, string?)
     return false, "You must be at least Level 10 to perform this action!"
 end
 
--- Example using a RemoteFunction so the client can receive the error message
 Network.bindFunction(
     Network.RemoteFunctions.UnlockSecretArea,
     function(player)
@@ -198,3 +214,23 @@ Network.bindFunction(
     { LevelRequirementMiddleware }
 )
 ```
+
+### Returning Middleware Failure Reasons
+
+Because `RemoteEvent`s are one-way signals, failed middleware checks on `connectEvent` will silently drop the event. 
+
+If you want to return the middleware failure reason back to the client, you should use a `RemoteFunction` via `Network.invokeServerAsync()` and `Network.bindFunction()`. When a middleware fails on the server during a `RemoteFunction` invocation, `bindFunction` automatically throws an error with the failure reason string, which `Network.invokeServerAsync()` safely catches and returns to the client as `false, failureReason`:
+
+```lua
+-- Client-side invocation
+local success, result = Network.invokeServerAsync(Network.RemoteFunctions.UnlockSecretArea)
+
+if not success then
+    -- `result` contains the failure reason string returned by the middleware
+    warn(`Request rejected: {result}`)
+else
+    -- `result` contains the return value from the server callback
+    print(`Request succeeded: {result}`)
+end
+```
+
